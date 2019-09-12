@@ -14,13 +14,19 @@ def create_searchable_database(root):
 
     index_dir = os.path.join(root, "index_dir")
     corpus_dir = os.path.join(root, "json_data2")
-    shutil.rmtree(index_dir)
-    exit()
-    if not os.path.exists(index_dir):
-        os.mkdir(index_dir)
-    schema = Schema(title=TEXT(stored=True))
+    while True:
+        inpt = input("Warning! This will remove the current index_dir. Type \"ok\" to continue,"
+                     " or \"exit\" to abort: \n")
+        if inpt == "ok":
+            break
+        elif inpt == "exit":
+            exit()
+    if os.path.exists(index_dir):
+        shutil.rmtree(index_dir)
+    os.mkdir(index_dir)
+    schema = Schema(title=TEXT(stored=True),
                     # path=ID(),
-                    # content=TEXT(stored=True))
+                    content=TEXT(stored=True))
 
     ix = create_in(index_dir, schema)
     writer = ix.writer()
@@ -38,7 +44,7 @@ def add_documents(writer, corpus_dir):
                     data = json.load(json_file)
                     for item in range(len(data)):
                         print( data[item]["book_title"] )
-                        writer.add_document(title=data[item]["book_title"])
+                        writer.add_document(title=data[item]["book_title"], content=data[item]["content"])
                         break
 
 

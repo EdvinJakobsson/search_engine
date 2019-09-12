@@ -1,4 +1,4 @@
-from whoosh.qparser import QueryParser
+from whoosh.qparser import QueryParser, OrGroup
 from whoosh import scoring
 from whoosh.index import open_dir
 
@@ -13,16 +13,18 @@ def search_for(index_dir, query_str, num_results):
     """
     ix = open_dir(index_dir)
     with ix.searcher(weighting=scoring.BM25F) as searcher:
-        query = QueryParser("content", ix.schema).parse(query_str)
+        query = QueryParser("content", ix.schema, group=OrGroup).parse(query_str)
+        print(query)
         result_object = searcher.search(query, limit=num_results)
         results = []
+        if not result_object:
+            print("No results found.\n")
         for i in range(num_results):
             try:
                 dict = {}
-                print("sttuuuf \t\t = ", result_object[i]["path"])
                 dict["title"] = result_object[i]['title']
                 dict["score"] = str(result_object[i].score)
-                dict["textdata"] = result_object[i]['textdata']
+                dict["content"] = result_object[i]['content']
                 results.append(dict)
             except IndexError:
                 continue
