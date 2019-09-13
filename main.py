@@ -11,14 +11,17 @@ def search_for(index_dir, query_str, num_results):
     :param num_results:
     :return:
     """
+    results = []
     ix = open_dir(index_dir)
     with ix.searcher(weighting=scoring.BM25F) as searcher:
-        query = QueryParser("content", ix.schema, group=OrGroup).parse(query_str)
-        print(query)
+        query = QueryParser("content", ix.schema).parse(query_str)
         result_object = searcher.search(query, limit=num_results)
-        results = []
         if not result_object:
-            print("No results found.\n")
+            query = QueryParser("content", ix.schema, group=OrGroup).parse(query_str)
+            result_object = searcher.search(query, limit=num_results)
+        if not result_object:
+            print("No texts were found.\n")
+
         for i in range(num_results):
             try:
                 dict = {}
@@ -31,32 +34,30 @@ def search_for(index_dir, query_str, num_results):
     return results
 
 
-def print_results(results, num_results):
-    """
-
-    :param results:
-    :param num_results:
-    :return:
-    """
+def list_files(index_dir):
+    ix = open_dir(index_dir)
+    docs = ix.searcher().documents()
+    for doc in docs:
+        print(doc["title"])
 
 
 def main():
-    """
-
-    :return:
-    """
-
-    num_results = 2
+    num_results = 5
     index_dir = "search_engine/index_dir"
 
     while True:
         query_str = input("\nPlease state your search query:\n")
         if query_str == "exit":
             exit()
+        if query_str == "files":
+            list_files(index_dir)
+            continue
         results = search_for(index_dir, query_str, num_results)
         for dictionary in results:
-            print(dictionary, "\n")
+            print("Looking through file: ", dictionary["title"], "\n")
 
 
 if __name__ == "__main__":
     main()
+
+

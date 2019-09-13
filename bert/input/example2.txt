@@ -1,0 +1,5 @@
+Assisted Time Holdover is a network synchronization feature. It extends the time holdover period when the primary GNSS time synchronization source fails.
+Extending time holdover results in the following: The availability of TDD and FDD services that require time synchronization is extended during a Time Reference Outage. The operator can plan on-site maintenance actions to normal working hours.
+An additional benefit of the Assisted Time Holdover feature is that the network, which is connecting the PTP Grandmaster and the node, does not need to support PTP Boundary Clock or Transparent Clock.
+Supported assisting reference types are the following:
+PTP over IP according to ITU-T G.8275.2, commonly known as APTS.
