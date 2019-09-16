@@ -2,7 +2,7 @@ import os
 import json
 import shutil
 from whoosh.index import create_in
-from whoosh.fields import Schema, TEXT, KEYWORD, STORED
+from whoosh.fields import Schema, TEXT, KEYWORD
 
 
 
@@ -32,7 +32,7 @@ def create_searchable_database(root, txt_files=True):
     schema = Schema(
         title=TEXT(stored=True),
         keywords=KEYWORD(stored=True, scorable=True, commas=True),
-        content=STORED())
+        content=TEXT(stored=True))
 
     ix = create_in(index_dir, schema)
     writer = ix.writer()
@@ -50,6 +50,8 @@ def add_json_documents(writer, corpus_dir):
                 with open(os.path.join(root, file)) as json_file:
                     data = json.load(json_file)
                     for dict in data:
+                        if dict["content"] == "" and not dict["steps"]:
+                            continue
                         content = (dict["content"] + "\n")
                         if dict["steps"]:
                             for step in dict["steps"]:
@@ -57,7 +59,7 @@ def add_json_documents(writer, corpus_dir):
                         content += "\n"
                         writer.add_document(
                             title=dict["book_title"] + " - " + dict["title"],
-                            content=dict["content"],
+                            content=content,
                             keywords=dict["keywords"]
                         )
 

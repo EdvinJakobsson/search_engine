@@ -1,4 +1,4 @@
-from whoosh.qparser import QueryParser, OrGroup
+from whoosh.qparser import QueryParser, OrGroup, MultifieldParser
 from whoosh import scoring
 from whoosh.index import open_dir
 from bert import bert
@@ -18,17 +18,15 @@ def search_for(index_dir, query_str, num_results):
     results = []
     ix = open_dir(index_dir)
     with ix.searcher(weighting=scoring.BM25F) as searcher:
-        query = QueryParser("keywords", ix.schema).parse(query_str)
-        print("Query:", query)
+        query = QueryParser("title", ix.schema).parse(query_str)
         result_object = searcher.search(query, limit=num_results)
         if not result_object:
-            query = QueryParser("content", ix.schema, group=OrGroup).parse(query_str)
+            query = QueryParser("title", ix.schema, group=OrGroup).parse(query_str)
             result_object = searcher.search(query, limit=num_results)
+        print("Query:", query)
         if not result_object:
             print("No texts were found.\n")
-        print(result_object[0]["title"])
-        print(result_object[0]["content"])
-        exit()
+
         for i in range(num_results):
             try:
                 dict = {}
@@ -58,6 +56,15 @@ def print_content(file, index_dir):
             print("\n", doc["content"])
             print("\nKeywords:", doc["keywords"])
 
+def ask_questions(model, paragraph):
+    while True:
+        query = input("What is your question?\n")
+        if query == "go back":
+            break
+        if query == "exit":
+            exit()
+        answer = bert.bert_answer(model, query, paragraph)
+        print("Bert\'s answer: ", answer)
 
 def main():
     model = bert.load_bert()
@@ -85,11 +92,11 @@ def main():
         results = search_for(index_dir, query_str, num_results)
         if results:
             for dictionary in results:
-                print("\nLooking through file: ", dictionary["title"], " length: ", len(dictionary["content"].split()))
-                print(dictionary["content"], "\n")
+                print("\nLooking through file: ", dictionary["title"], " length: ", len(dictionary["content"].split()), "words.")
+                print("\n", dictionary["content"], "\n")
                 print("Keywords:", dictionary["keywords"], "\n")
-                answer = bert.bert_answer(model, query_str, dictionary["content"])
-                print("Bert\'s answer: ", answer)
+                ask_questions(model, dictionary["content"])
+
             last_result = results[0]
 
 
