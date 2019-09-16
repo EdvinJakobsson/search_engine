@@ -490,158 +490,107 @@ RawResult = collections.namedtuple(
 )
 
 
-def main():
+def load_bert(model_path="bert/model/pytorch_model.bin", config_file="bert/config_parameters/config.json"):
+    print("Loading BERT-model...")
+    config = BertConfig(config_file)
+    model = BertForQuestionAnswering(config)
+    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
+    print("Model loaded.\n\n")
+    return model
+
+
+def bert_answer(model, query, paragraph):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--paragraph", default=None, type=str)
-    parser.add_argument("--model", default=None, type=str)
+    # parser.add_argument("--paragraph", default=None, type=str)
+    # parser.add_argument("--model", default=None, type=str)
     parser.add_argument("--max_seq_length", default=384, type=int)
     parser.add_argument("--doc_stride", default=128, type=int)
     parser.add_argument("--max_query_length", default=64, type=int)
-    parser.add_argument("--config_file", default=None, type=str)
+    # parser.add_argument("--config_file", default=None, type=str)
     parser.add_argument("--max_answer_length", default=30, type=int)
-
     args = parser.parse_args()
-    para_file = args.paragraph
-    model_path = args.model
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    n_gpu = torch.cuda.device_count()
-
-    ### Loading Pretrained model for QnA
-    print("Loading BERT-model...\n\n")
-    config = BertConfig(args.config_file)
-    model = BertForQuestionAnswering(config)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
     model.to(device)
-
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", do_lower_case=True)
 
-    while True:
-        print(
-            "Please specify paragraph: \n "
-            "1: Assisted Time Holdover \n "
-            "2: Semcon short version \n "
-            "3: Semcon long version"
-        )
-        choice = input()
-        if choice == "1":
-            break
-        elif choice == "2":
-            para_file = "bert/input/semcon_short.txt"
-            break
-        elif choice == "3":
-            para_file = "bert/input/semcon.txt"
-            break
-        else:
-            print("I did not understand that, please type in 1, 2 or 3. \n")
+    input_data = []
+    paragraphs = {}
+    paragraphs["id"] = 1
+    #    paragraphs["text"] = splits[0].replace("Paragraph:", "").strip("\n")
+    paragraphs["text"] = paragraph
+    paragraphs["ques"] = [query]
+    start = time.time()
+    input_data.append(paragraphs)
+    ## input_data is a list of dictionary which has a paragraph and questions
+    examples = read_squad_examples(input_data)
 
-    ### Reading paragraph
-    f = open(para_file, "r")
-    para = f.read()
-    f.close()
-    print("\nParagraph:\n", para)
+    eval_features = convert_examples_to_features(
+        examples=examples,
+        tokenizer=tokenizer,
+        max_seq_length=args.max_seq_length,
+        doc_stride=args.doc_stride,
+        max_query_length=args.max_query_length,
+    )
 
-    while True:
-        input_data = []
-        paragraphs = {}
-        paragraphs["id"] = 1
-        #    paragraphs["text"] = splits[0].replace("Paragraph:", "").strip("\n")
-        paragraphs["text"] = para
-        paragraphs["ques"] = [input("\n What is your question?\n")]
-        if paragraphs["ques"] == ["exit"]:
-            exit()
-        start = time.time()
-        input_data.append(paragraphs)
-        ## input_data is a list of dictionary which has a paragraph and questions
-        examples = read_squad_examples(input_data)
+    all_input_ids = torch.tensor(
+        [f.input_ids for f in eval_features], dtype=torch.long
+    )
+    all_input_mask = torch.tensor(
+        [f.input_mask for f in eval_features], dtype=torch.long
+    )
+    all_segment_ids = torch.tensor(
+        [f.segment_ids for f in eval_features], dtype=torch.long
+    )
+    all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
 
-        eval_features = convert_examples_to_features(
-            examples=examples,
-            tokenizer=tokenizer,
-            max_seq_length=args.max_seq_length,
-            doc_stride=args.doc_stride,
-            max_query_length=args.max_query_length,
-        )
+    pred_data = TensorDataset(
+        all_input_ids, all_input_mask, all_segment_ids, all_example_index
+    )
+    # Run prediction for full data
+    pred_sampler = SequentialSampler(pred_data)
+    pred_dataloader = DataLoader(pred_data, sampler=pred_sampler, batch_size=9)
 
-        all_input_ids = torch.tensor(
-            [f.input_ids for f in eval_features], dtype=torch.long
-        )
-        all_input_mask = torch.tensor(
-            [f.input_mask for f in eval_features], dtype=torch.long
-        )
-        all_segment_ids = torch.tensor(
-            [f.segment_ids for f in eval_features], dtype=torch.long
-        )
-        all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+    predictions = []
+    for input_ids, input_mask, segment_ids, example_indices in pred_dataloader:
+        input_ids = input_ids.to(device)
+        input_mask = input_mask.to(device)
+        segment_ids = segment_ids.to(device)
 
-        pred_data = TensorDataset(
-            all_input_ids, all_input_mask, all_segment_ids, all_example_index
-        )
-        # Run prediction for full data
-        pred_sampler = SequentialSampler(pred_data)
-        pred_dataloader = DataLoader(pred_data, sampler=pred_sampler, batch_size=9)
-
-        predictions = []
-        for input_ids, input_mask, segment_ids, example_indices in pred_dataloader:
-            input_ids = input_ids.to(device)
-            input_mask = input_mask.to(device)
-            segment_ids = segment_ids.to(device)
-
-            with torch.no_grad():
-                batch_start_logits, batch_end_logits = model(
-                    input_ids, segment_ids, input_mask
-                )
-
-            features = []
-            example = []
-            all_results = []
-
-            for i, example_index in enumerate(example_indices):
-                start_logits = batch_start_logits[i].detach().cpu().tolist()
-                end_logits = batch_end_logits[i].detach().cpu().tolist()
-                feature = eval_features[example_index.item()]
-                unique_id = int(feature.unique_id)
-                features.append(feature)
-                all_results.append(
-                    RawResult(
-                        unique_id=unique_id,
-                        start_logits=start_logits,
-                        end_logits=end_logits,
-                    )
-                )
-
-            output = predict(examples, features, all_results, args.max_answer_length)
-            predictions.append(output)
-
-        prediction = colored(
-            predictions[math.floor(examples[0].unique_id / 12)][examples[0]],
-            "green",
-            attrs=["reverse"],
-        )
-        print(prediction, "\n")
-        print("Time: ", time.time() - start)
-
-    """
-        ### For printing the results ####
-        index = None
-        for example in examples:
-            if index != example.example_id:
-                print(example.para_text)
-                index = example.example_id
-                print("\n")
-                print(colored("***********Question and Answers *************", "red"))
-    
-            ques_text = colored(example.question_text, "blue")
-            print(ques_text)
-            prediction = colored(
-                predictions[math.floor(example.unique_id / 12)][example],
-                "green",
-                attrs=["reverse"],
+        with torch.no_grad():
+            batch_start_logits, batch_end_logits = model(
+                input_ids, segment_ids, input_mask
             )
-            print(prediction)
-            print("\n")
-    """
+
+        features = []
+        example = []
+        all_results = []
+
+        for i, example_index in enumerate(example_indices):
+            start_logits = batch_start_logits[i].detach().cpu().tolist()
+            end_logits = batch_end_logits[i].detach().cpu().tolist()
+            feature = eval_features[example_index.item()]
+            unique_id = int(feature.unique_id)
+            features.append(feature)
+            all_results.append(
+                RawResult(
+                    unique_id=unique_id,
+                    start_logits=start_logits,
+                    end_logits=end_logits,
+                )
+            )
+
+        output = predict(examples, features, all_results, args.max_answer_length)
+        predictions.append(output)
+
+    prediction = predictions[math.floor(examples[0].unique_id / 12)][examples[0]]
+    return prediction
 
 
 if __name__ == "__main__":
-    main()
+    model = load_bert()
+    query = "How do I install Radio?"
+    paragraph = "You can learn to install radio by reading the manual."
+    prediction = bert_answer(model, query, paragraph)
+    print(prediction, "\n")
+    # print("Time: ", time.time() - start)

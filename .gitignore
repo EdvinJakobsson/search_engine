@@ -4,6 +4,7 @@ search_engine/index_dir/*
 search_engine/json_dir/*
 search_engine/txt_dir/*
 search_engine/index_dir_for_wiki/*
+search_engine/extras/*
 
 # Created by https://www.gitignore.io/api/linux,python,pycharm
 # Edit at https://www.gitignore.io/?templates=linux,python,pycharm

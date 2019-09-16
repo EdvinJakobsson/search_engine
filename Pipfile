@@ -6,9 +6,12 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-whoosh = "*"
-black = "*"
 numpy = "*"
+pandas = "*"
+whoosh = "*"
+pytorch-pretrained-bert = "*"
+termcolor = "*"
+black = "*"
 
 [requires]
 python_version = "3.6"

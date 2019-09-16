@@ -1,8 +1,9 @@
 import os
 import json
-from whoosh.index import create_in
-from whoosh.fields import Schema, TEXT, ID
 import shutil
+from whoosh.index import create_in
+from whoosh.fields import Schema, TEXT, KEYWORD, STORED
+
 
 
 def create_searchable_database(root, txt_files=True):
@@ -30,8 +31,8 @@ def create_searchable_database(root, txt_files=True):
     os.mkdir(index_dir)
     schema = Schema(
         title=TEXT(stored=True),
-        # path=ID(),
-        content=TEXT(stored=True))
+        keywords=KEYWORD(stored=True, scorable=True, commas=True),
+        content=STORED())
 
     ix = create_in(index_dir, schema)
     writer = ix.writer()
@@ -43,21 +44,21 @@ def create_searchable_database(root, txt_files=True):
 
 
 def add_json_documents(writer, corpus_dir):
-
     for root, dirs, files in os.walk(corpus_dir):
         for file in files:
             if ".json" in file:
                 with open(os.path.join(root, file)) as json_file:
                     data = json.load(json_file)
-                    for item in range(len(data)):
-                        print(data[item]["content"])
-                        if data[item]["steps"]:
-                            for step in data[item]["steps"]:
-                                print(step["order"], ": ", step["cmd"])
-                        print("\n")
+                    for dict in data:
+                        content = (dict["content"] + "\n")
+                        if dict["steps"]:
+                            for step in dict["steps"]:
+                                content += "step " + (str(step["order"]) + ": " + str(step["cmd"]) + "\n")
+                        content += "\n"
                         writer.add_document(
-                            title=data[item]["book_title"],
-                            content=data[item]["content"],
+                            title=dict["book_title"] + " - " + dict["title"],
+                            content=dict["content"],
+                            keywords=dict["keywords"]
                         )
 
 
@@ -76,49 +77,6 @@ def add_txt_documents(writer, corpus_dir):
                     )
 
 
-def json_to_txt(root):
-    """
-
-    :param root:
-    :return:
-    """
-    json_dir = os.path.join(root, "json_dir")
-    txt_dir = os.path.join(root, "txt_dir")
-    if os.path.exists(txt_dir):
-        shutil.rmtree(txt_dir)
-    os.mkdir(txt_dir)
-
-    for root, dirs, files in os.walk(json_dir):
-        for file in files:
-            if ".json" in file:
-                jsonfile_to_txt(root, file, txt_dir)
-
-
-def jsonfile_to_txt(root, file, txt_dir):
-    """
-
-    :param root:
-    :param file:
-    :param txt_dir:
-    :return:
-    """
-    with open(os.path.join(root, file)) as json_file:
-        json_data = json.load(json_file)
-        txt_file = open(
-            os.path.join(
-                txt_dir, json_data[0]["book_title"].replace(" ", "_") + ".txt"
-            ),
-            "w",
-        )
-        for dict in json_data:
-            txt_file.write(dict["content"] + "\n")
-            if dict["steps"]:
-                for step in dict["steps"]:
-                    txt_file.write(str(step["order"]) + ": " + str(step["cmd"]) + "\n")
-            txt_file.write("\n")
-        txt_file.close()
-
-
 if __name__ == "__main__":
-    create_searchable_database("")
-    # json_to_txt("")
+    create_searchable_database("", txt_files=False)
+

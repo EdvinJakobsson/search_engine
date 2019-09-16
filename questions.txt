@@ -1,0 +1,9 @@
+data_collection_guideline:
+	When is a csr written?
+	What should I consider when taking photographs of a label?
+	
+
+Antenna Sharing 
+	Can antennas be shared by radio units?
+	How do i prevent a single point of failure from causing the entire sector to be lost?
+
