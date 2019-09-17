@@ -4,7 +4,7 @@ from whoosh.index import open_dir
 from bert import bert
 
 
-def search_for(index_dir, query_str, num_results):
+def search(index_dir, query_str, num_results):
     """
 
     Args:
@@ -29,12 +29,12 @@ def search_for(index_dir, query_str, num_results):
 
         for i in range(num_results):
             try:
-                dict = {}
-                dict["title"] = result_object[i]['title']
-                dict["score"] = str(result_object[i].score)
-                dict["content"] = result_object[i]['content']
-                dict["keywords"] = result_object[i]["keywords"]
-                results.append(dict)
+                dictionary = {}
+                dictionary["title"] = result_object[i]['title']
+                dictionary["score"] = str(result_object[i].score)
+                dictionary["content"] = result_object[i]['content']
+                dictionary["keywords"] = result_object[i]["keywords"]
+                results.append(dictionary)
             except IndexError:
                 continue
     return results
@@ -48,13 +48,14 @@ def list_files(index_dir):
     print("In total: ", ix.searcher().doc_count(), "entries.")
 
 
-def print_content(file, index_dir):
-    ix = open_dir(index_dir)
-    docs = ix.searcher().documents()
-    for doc in docs:
-        if doc["title"] == file:
-            print("\n", doc["content"])
-            print("\nKeywords:", doc["keywords"])
+def read_file(file):
+    try:
+        print("\n" + file["title"])
+        print("\n" + file["content"])
+        print("Keywords: ", file["keywords"])
+    except:
+        print("No file found.")
+
 
 def ask_questions(model, paragraph):
     while True:
@@ -66,6 +67,16 @@ def ask_questions(model, paragraph):
         answer = bert.bert_answer(model, query, paragraph)
         print("Bert\'s answer: ", answer)
 
+
+def ask_bert(model, results):
+    for result in results:
+        print("\nLooking through file: ", result["title"], " length: ", len(result["content"].split()),
+              "words.")
+        print("\n", result["content"], "\n")
+        print("Keywords:", result["keywords"], "\n")
+        ask_questions(model, result["content"])
+
+
 def main():
     model = bert.load_bert()
 
@@ -74,32 +85,22 @@ def main():
     last_result = None
 
     while True:
-        query_str = input("\n-------------------------------\nPlease state your search query:\n")
+        query_str = input("\n-------------------------------\n"
+                          "Please state your search query:\n")
         if query_str == "exit":
             exit()
         if query_str == "files":
             list_files(index_dir)
             continue
         if query_str == "read last":
-            print("\n" + last_result["title"])
-            print("\n" + last_result["content"])
-            print("Keywords: ", last_result["keywords"])
-            continue
-        elif query_str.startswith("read "):
-            print_content(query_str[5:], index_dir)
+            read_file(last_result)
             continue
 
-        results = search_for(index_dir, query_str, num_results)
+        results = search(index_dir, query_str, num_results)
         if results:
-            for dictionary in results:
-                print("\nLooking through file: ", dictionary["title"], " length: ", len(dictionary["content"].split()), "words.")
-                print("\n", dictionary["content"], "\n")
-                print("Keywords:", dictionary["keywords"], "\n")
-                ask_questions(model, dictionary["content"])
-
+            ask_bert(model, results)
             last_result = results[0]
 
 
 if __name__ == "__main__":
     main()
-
